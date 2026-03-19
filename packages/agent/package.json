@@ -1,5 +1,5 @@
 {
-  "name": "sally-agent",
+  "name": "@heysalad/sally-agent",
   "version": "0.0.1",
   "description": "Host daemon for Sally device discovery and lifecycle management.",
   "license": "MIT",
