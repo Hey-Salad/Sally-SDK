@@ -1,0 +1,1 @@
+{"version":3,"file":"AuthClient.d.ts","sourceRoot":"","sources":["AuthClient.ts"],"names":[],"mappings":"AAAA,MAAM,WAAW,YAAY;IAC3B,KAAK,EAAE,MAAM,CAAC;IACd,QAAQ,EAAE,MAAM,CAAC;CAClB;AAED,qBAAa,UAAU;IACf,MAAM,IAAI,OAAO,CAAC,YAAY,GAAG,IAAI,CAAC;CAG7C"}

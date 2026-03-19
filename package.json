@@ -1,0 +1,29 @@
+{
+  "name": "heysalad-sally",
+  "private": true,
+  "version": "0.0.0",
+  "description": "HeySalad Sally monorepo for CLI, SDK, host agent, dashboard, and Cloudflare services.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.3.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "changeset": "changeset",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "pack:release": "mkdir -p .artifacts && pnpm --dir packages/sdk pack --pack-destination ../../.artifacts && pnpm --dir packages/cli pack --pack-destination ../../.artifacts",
+    "release:publish": "changeset publish",
+    "release:status": "changeset status --verbose",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "version-packages": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "turbo": "^2.5.4",
+    "typescript": "^5.9.3"
+  }
+}

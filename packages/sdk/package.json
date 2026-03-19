@@ -1,0 +1,60 @@
+{
+  "name": "@heysalad/sally-sdk",
+  "version": "0.1.0",
+  "description": "Programmatic SDK for Sally device, AI, auth, and tunnel operations.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://github.com/Hey-Salad/sally#readme",
+  "bugs": {
+    "url": "https://github.com/Hey-Salad/sally/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hey-Salad/sally.git"
+  },
+  "keywords": [
+    "heysalad",
+    "sally",
+    "sdk",
+    "cloudflare",
+    "device-automation",
+    "ios",
+    "android",
+    "ai"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "openai": "^5.12.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.6",
+    "vitest": "^3.2.4"
+  }
+}

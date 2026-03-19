@@ -1,0 +1,15 @@
+name = "heysalad-sally-worker"
+account_id = "67a17ada4efeee4480283035cc0c5f90"
+main = "src/index.ts"
+compatibility_date = "2026-03-19"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "heysalad-sally"
+database_id = "5897d527-ae67-468e-bc8d-bd21f3ff5fac"
+migrations_dir = "migrations"
+
+[vars]
+REQUIRE_ACCESS_AUTH = "false"
+SALLY_ENV = "development"

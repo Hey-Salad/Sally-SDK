@@ -1,0 +1,9 @@
+import os
+
+DEVICE_UDID = "00008030-000259E936BB802E"
+FFMPEG_DEVICE_IDX = "2"
+IPHONE_W = 375
+IPHONE_H = 812
+WDA_BUNDLE_ID = "com.facebook.WebDriverAgentRunner.xctrunner"
+WDA_PORT = 8100
+SERVER_PORT = int(os.getenv("SALLY_SERVER_PORT", "8765"))

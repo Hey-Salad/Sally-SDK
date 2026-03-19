@@ -1,0 +1,1 @@
+{"version":3,"file":"StreamServer.d.ts","sourceRoot":"","sources":["StreamServer.ts"],"names":[],"mappings":"AAAA,MAAM,WAAW,kBAAkB;IACjC,IAAI,EAAE,MAAM,CAAC;CACd;AAED,qBAAa,YAAY;IACX,OAAO,CAAC,QAAQ,CAAC,MAAM;gBAAN,MAAM,EAAE,kBAAkB;IAEvD,SAAS,IAAI,kBAAkB;CAGhC"}
