@@ -5,7 +5,9 @@ import { Command } from "commander";
 import { registerAiCommand } from "./commands/ai.js";
 import { registerAuthCommand } from "./commands/auth.js";
 import { registerDeviceCommand } from "./commands/device.js";
+import { registerKioskCommand } from "./commands/kiosk.js";
 import { registerLogsCommand } from "./commands/logs.js";
+import { registerMcpCommand } from "./commands/mcp.js";
 import { registerTunnelCommand } from "./commands/tunnel.js";
 
 const program = new Command();
@@ -22,6 +24,8 @@ registerAiCommand(program);
 registerAuthCommand(program);
 registerTunnelCommand(program);
 registerLogsCommand(program);
+registerKioskCommand(program);
+registerMcpCommand(program);
 
 void program.parseAsync(process.argv);
 

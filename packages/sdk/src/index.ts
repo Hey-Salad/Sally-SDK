@@ -9,4 +9,5 @@ export * from "./auth/AuthClient.js";
 export * from "./auth/TeamManager.js";
 export * from "./ai/AgentRunner.js";
 export * from "./ai/ClaudeClient.js";
-
+export * from "./client.js";
+export * from "./types.js";

@@ -1,6 +1,6 @@
 {
   "name": "@heysalad/sally",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HeySalad Sally command line interface.",
   "license": "MIT",
   "type": "module",
@@ -51,9 +51,11 @@
   },
   "dependencies": {
     "@heysalad/sally-sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
-    "ora": "^8.2.0"
+    "ora": "^8.2.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

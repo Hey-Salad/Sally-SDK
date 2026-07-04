@@ -30,6 +30,7 @@ Sally is now running end to end:
 Start here:
 
 - [docs/getting-started.md](docs/getting-started.md)
+- [docs/hackathon-platform.md](docs/hackathon-platform.md)
 - [docs/ios-setup.md](docs/ios-setup.md)
 - [docs/android-setup.md](docs/android-setup.md)
 - [docs/team-setup.md](docs/team-setup.md)

@@ -1,6 +1,6 @@
 {
   "name": "@heysalad/sally-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Programmatic SDK for Sally device, AI, auth, and tunnel operations.",
   "license": "MIT",
   "type": "module",

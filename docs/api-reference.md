@@ -205,6 +205,52 @@ Current note:
 
 - `tunnel open` and `tunnel close` are aliases that point users back to `device start` and `device stop`.
 
+### Kiosk commands
+
+```bash
+sally kiosk menu [--meal <meal>] [--api-base-url <url>] [--json]
+sally kiosk orders [--view active|history] [--api-base-url <url>] [--json]
+sally kiosk order --table <number> --item <id[:qty]> [--item <id[:qty]>] [--meal <meal>] [--notes <text>] [--payment-reference <ref>] [--api-base-url <url>] [--json]
+sally kiosk status <orderId> [--api-base-url <url>] [--json]
+sally kiosk update-status <orderId> --status pending|confirmed|preparing|ready|delivered|cancelled [--estimated-minutes <number>] [--api-base-url <url>] [--json]
+```
+
+Kiosk commands resolve the API base URL in this order:
+
+- `--api-base-url`
+- `SALLY_KIOSK_BASE_URL`
+- `SALLY_API_BASE_URL`
+- `~/.sally/config.json`
+
+### MCP server
+
+```bash
+sally mcp [--api-base-url <url>] [--token <token>]
+```
+
+The MCP server exposes:
+
+- `sally_menu_list`
+- `sally_order_create`
+- `sally_order_get`
+- `sally_order_update_status`
+
+Example MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "sally": {
+      "command": "npx",
+      "args": ["-y", "@heysalad/sally", "mcp"],
+      "env": {
+        "SALLY_KIOSK_BASE_URL": "https://YOUR_KIOSK_API_BASE_URL"
+      }
+    }
+  }
+}
+```
+
 ## Local Config File
 
 Location:
