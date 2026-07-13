@@ -1,5 +1,16 @@
 import type {
   ChatRequest,
+  ComputerAgent,
+  ComputerAgentConnectInput,
+  ComputerAgentConnectResult,
+  ComputerAgentRegisterInput,
+  ComputerAgentSession,
+  ComputerCommand,
+  ComputerCommandResultInput,
+  ComputerCommandSubmitInput,
+  ComputerPairingSessionClaimResult,
+  ComputerPairingSessionCreateInput,
+  ComputerPairingSessionCreateResult,
   HealthResponse,
   KioskCreateOrderFromMenuInput,
   KioskCreateOrderInput,
@@ -166,6 +177,91 @@ export class SallyClient {
     yield* streamSse(response.body);
   }
 
+  async createComputerPairingSession(
+    input: ComputerPairingSessionCreateInput = {}
+  ): Promise<ComputerPairingSessionCreateResult> {
+    return this.requestJson<ComputerPairingSessionCreateResult>("/computers/pairing-sessions", {
+      body: input,
+      method: "POST"
+    });
+  }
+
+  async claimComputerPairingSession(code: string): Promise<ComputerPairingSessionClaimResult> {
+    return this.requestJson<ComputerPairingSessionClaimResult>(
+      "/computers/pairing-sessions/claim",
+      { body: { code }, method: "POST" }
+    );
+  }
+
+  async registerComputerAgent(input: ComputerAgentRegisterInput): Promise<ComputerAgent> {
+    const response = await this.requestJson<{ item: ComputerAgent }>("/computers/agents", {
+      body: input,
+      method: "POST"
+    });
+    return response.item;
+  }
+
+  async connectComputerAgent(
+    input: ComputerAgentConnectInput
+  ): Promise<ComputerAgentConnectResult> {
+    return this.requestJson<ComputerAgentConnectResult>("/computers/link/connect", {
+      body: input,
+      method: "POST"
+    });
+  }
+
+  async listComputerAgents(): Promise<ComputerAgent[]> {
+    const response = await this.requestJson<{ items: ComputerAgent[] }>("/computers/agents");
+    return response.items;
+  }
+
+  async revokeComputerAgent(agentId: string): Promise<ComputerAgent> {
+    const response = await this.requestJson<{ item: ComputerAgent }>(
+      `/computers/agents/${encodeURIComponent(agentId)}/revoke`,
+      { method: "POST" }
+    );
+    return response.item;
+  }
+
+  async submitComputerCommand(
+    agentId: string,
+    input: ComputerCommandSubmitInput
+  ): Promise<ComputerCommand> {
+    const response = await this.request(
+      `/computers/agents/${encodeURIComponent(agentId)}/commands`,
+      { body: input, method: "POST" }
+    );
+    // A denied command is a meaningful outcome (403 with the command record), not an error.
+    if (!response.ok && response.status !== 403) {
+      throw await this.makeHttpError(response);
+    }
+    const payload = (await response.json()) as { item?: ComputerCommand };
+    if (!payload.item) {
+      throw new Error("Computer command response did not include a command record.");
+    }
+    return payload.item;
+  }
+
+  async pollComputerCommands(session: ComputerAgentSession): Promise<ComputerCommand[]> {
+    const response = await this.requestJson<{ items: ComputerCommand[] }>(
+      "/computers/link/commands",
+      { headers: agentSessionHeaders(session) }
+    );
+    return response.items;
+  }
+
+  async completeComputerCommand(
+    session: ComputerAgentSession,
+    commandId: string,
+    input: ComputerCommandResultInput
+  ): Promise<ComputerCommand> {
+    const response = await this.requestJson<{ item: ComputerCommand }>(
+      `/computers/link/commands/${encodeURIComponent(commandId)}/result`,
+      { body: input, headers: agentSessionHeaders(session), method: "POST" }
+    );
+    return response.item;
+  }
+
   private async requestJson<T>(
     path: string,
     init: JsonRequestInit = {}
@@ -215,6 +311,13 @@ export class SallyClient {
       return new Error(fallback);
     }
   }
+}
+
+function agentSessionHeaders(session: ComputerAgentSession): Record<string, string> {
+  return {
+    "X-Sally-Agent-Id": session.agentId,
+    "X-Sally-Agent-Session": session.sessionToken
+  };
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

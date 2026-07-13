@@ -1,23 +1,79 @@
 import { z } from "zod";
 
 import type {
+  CompleteTestRunInput,
   CreateDeviceInput,
+  CreateRecipeInput,
   CreateSessionInput,
+  CreateSessionSyncInput,
+  CreateShoppingListInput,
+  CreateShoppingNotificationInput,
   CreateTeamInput,
   CreateUserInput,
   DeviceRecord,
   DeviceStatus,
+  DevicePlatform,
   QueryService,
+  RecipeRecord,
   SessionRecord,
+  SessionSyncRecord,
+  ShoppingListRecord,
+  StartTestRunInput,
+  ShoppingNotificationRecord,
   TeamRecord,
+  TestRunCheckRecord,
+  TestRunStatus,
+  TestRunRecord,
   UpdateDeviceInput,
   UserRecord,
+  ShoppingItem,
+  SyncPlatform,
   WorkerBindings
 } from "../types.js";
 
 const roleSchema = z.enum(["owner", "admin", "developer", "viewer"]);
 const platformSchema = z.enum(["ios", "android"]);
+const syncPlatformSchema = z.enum(["macos", "ios", "android", "web"]);
 const statusSchema = z.string();
+const shoppingItemSchema = z.object({
+  checked: z.boolean().optional(),
+  name: z.string().min(1),
+  qty: z.number().int().min(1),
+  store: z.string().min(1)
+});
+const recipeContentSchema = z.object({
+  calories: z.number().int().nullable(),
+  ingredients: z.array(z.string().min(1)),
+  steps: z.array(z.string().min(1)),
+  time: z.string().min(1),
+  title: z.string().min(1)
+});
+const jsonObjectSchema = z.record(z.unknown());
+const shoppingNotificationStatusSchema = z.enum(["pending", "sent"]);
+const testRunStatusSchema = z.enum(["running", "passed", "failed"]);
+const testRunCheckStatusSchema = z.enum(["passed", "failed"]);
+const testRunCheckSchema = z.object({
+  detail: z.string().min(1),
+  key: z.string().min(1),
+  label: z.string().min(1),
+  status: testRunCheckStatusSchema
+});
+const testRunRecordSchema = z.object({
+  checks: z.array(testRunCheckSchema),
+  createdAt: z.number().int(),
+  deviceId: z.string(),
+  durationMs: z.number().int().nullable(),
+  finishedAt: z.number().int().nullable(),
+  id: z.string(),
+  platform: platformSchema,
+  sessionId: z.string().nullable(),
+  startedAt: z.number().int(),
+  status: testRunStatusSchema,
+  suite: z.string().min(1),
+  summary: z.string().min(1),
+  updatedAt: z.number().int(),
+  userId: z.string()
+});
 
 const teamRecordSchema = z.object({
   id: z.string(),
@@ -66,8 +122,8 @@ export interface QueryOptions {
 type SqlPrimitive = number | string | null;
 
 export function createQueryService(options: QueryOptions): QueryService {
-  const now = options.now ?? Date.now;
-  const idFactory = options.idFactory ?? crypto.randomUUID;
+  const now = options.now ?? (() => Date.now());
+  const idFactory = options.idFactory ?? (() => crypto.randomUUID());
   const db = options.db;
 
   return {
@@ -99,8 +155,65 @@ export function createQueryService(options: QueryOptions): QueryService {
       ]);
       return user;
     },
+    async createRecipe(input) {
+      const recipe = makeRecipeRecord(input, now, idFactory);
+      await execute(db, insertRecipeSql, [
+        recipe.id,
+        recipe.userId,
+        recipe.title,
+        JSON.stringify(recipe.ingredients),
+        JSON.stringify(recipe.steps),
+        recipe.time,
+        recipe.calories,
+        recipe.sourceUrl,
+        recipe.createdAt,
+        recipe.updatedAt
+      ]);
+      return recipe;
+    },
+    async createShoppingList(input) {
+      const shoppingList = makeShoppingListRecord(input, now, idFactory);
+      await execute(db, insertShoppingListSql, [
+        shoppingList.id,
+        shoppingList.userId,
+        JSON.stringify(shoppingList.items),
+        shoppingList.createdAt,
+        shoppingList.updatedAt
+      ]);
+      return shoppingList;
+    },
+    async createShoppingNotification(input) {
+      const notification = makeShoppingNotificationRecord(input, now, idFactory);
+      await execute(db, insertShoppingNotificationSql, [
+        notification.id,
+        notification.userId,
+        JSON.stringify(notification.payload),
+        notification.status,
+        notification.createdAt
+      ]);
+      return notification;
+    },
+    async completeTestRun(id, input) {
+      return completeTestRun(db, id, input, now);
+    },
     listDevices(filters) {
       return listDevices(db, filters ?? {});
+    },
+    getLatestShoppingList(userId) {
+      return selectFirstRaw(
+        db,
+        `${shoppingListsSql} WHERE user_id = ? ORDER BY updated_at DESC, created_at DESC, id DESC LIMIT 1`,
+        [userId],
+        parseShoppingListRow
+      );
+    },
+    listRecipes(userId) {
+      return selectManyRaw(
+        db,
+        `${recipesSql} WHERE user_id = ? ORDER BY updated_at DESC, created_at DESC, id DESC`,
+        [userId],
+        parseRecipeRow
+      );
     },
     listSessions() {
       return selectMany(
@@ -110,8 +223,22 @@ export function createQueryService(options: QueryOptions): QueryService {
         sessionRecordSchema
       );
     },
+    listSessionsForUser(userId) {
+      return selectManyRaw(
+        db,
+        `${sessionSyncSql} WHERE user_id = ? ORDER BY updated_at DESC, id DESC`,
+        [userId],
+        parseSessionSyncRow
+      ).then(deduplicateSessions);
+    },
+    listTestRuns(filters) {
+      return listTestRuns(db, filters ?? {});
+    },
     getDevice(id) {
       return selectFirst(db, `${devicesSql} WHERE id = ?`, [id], deviceRecordSchema);
+    },
+    getTestRun(id) {
+      return selectFirstRaw(db, `${testRunsSql} WHERE id = ?`, [id], parseTestRunRow);
     },
     async upsertDevice(input) {
       const record = await upsertDevice(db, input, now);
@@ -132,6 +259,38 @@ export function createQueryService(options: QueryOptions): QueryService {
       ]);
       return session;
     },
+    async syncSession(input) {
+      const session = makeSessionSyncRecord(input, now, idFactory);
+      await execute(db, insertSessionSyncSql, [
+        session.id,
+        session.platform,
+        session.userId,
+        session.deviceId,
+        JSON.stringify(session.context),
+        session.updatedAt
+      ]);
+      return session;
+    },
+    async startTestRun(input) {
+      const run = makeTestRunRecord(input, now, idFactory);
+      await execute(db, insertTestRunSql, [
+        run.id,
+        run.userId,
+        run.deviceId,
+        run.sessionId,
+        run.platform,
+        run.suite,
+        run.status,
+        run.summary,
+        JSON.stringify(run.checks),
+        run.startedAt,
+        run.finishedAt,
+        run.durationMs,
+        run.createdAt,
+        run.updatedAt
+      ]);
+      return run;
+    },
     stopSession(id, endedAt = now()) {
       return stopSession(db, id, endedAt);
     }
@@ -151,6 +310,23 @@ async function listDevices(
   return selectMany(db, sql, values, deviceRecordSchema);
 }
 
+async function listTestRuns(
+  db: WorkerBindings["DB"],
+  filters: {
+    deviceId?: string | undefined;
+    limit?: number | undefined;
+    suite?: string | undefined;
+    userId?: string | undefined;
+  }
+): Promise<TestRunRecord[]> {
+  const { clauses, values } = buildTestRunFilter(filters);
+  const whereClause = clauses.length === 0 ? "" : ` WHERE ${clauses.join(" AND ")}`;
+  const limitClause = filters.limit ? " LIMIT ?" : "";
+  const sql = `${testRunsSql}${whereClause} ORDER BY started_at DESC, id DESC${limitClause}`;
+  const queryValues = filters.limit ? [...values, filters.limit] : values;
+  return selectManyRaw(db, sql, queryValues, parseTestRunRow);
+}
+
 function buildDeviceFilter(filters: {
   status?: DeviceStatus | string | undefined;
   teamId?: string | undefined;
@@ -166,6 +342,32 @@ function buildDeviceFilter(filters: {
   if (filters.status) {
     clauses.push("status = ?");
     values.push(filters.status);
+  }
+
+  return { clauses, values };
+}
+
+function buildTestRunFilter(filters: {
+  deviceId?: string | undefined;
+  suite?: string | undefined;
+  userId?: string | undefined;
+}) {
+  const clauses: string[] = [];
+  const values: SqlPrimitive[] = [];
+
+  if (filters.userId) {
+    clauses.push("user_id = ?");
+    values.push(filters.userId);
+  }
+
+  if (filters.deviceId) {
+    clauses.push("device_id = ?");
+    values.push(filters.deviceId);
+  }
+
+  if (filters.suite) {
+    clauses.push("suite = ?");
+    values.push(filters.suite);
   }
 
   return { clauses, values };
@@ -211,6 +413,94 @@ function makeSessionRecord(
     startedAt: input.startedAt ?? now(),
     endedAt: input.endedAt ?? null,
     ipAddress: input.ipAddress ?? null
+  };
+}
+
+function makeSessionSyncRecord(
+  input: CreateSessionSyncInput,
+  now: () => number,
+  idFactory: () => string
+): SessionSyncRecord {
+  return {
+    id: input.id ?? idFactory(),
+    platform: input.platform,
+    userId: input.userId,
+    deviceId: input.deviceId,
+    context: input.context,
+    updatedAt: input.updatedAt ?? now()
+  };
+}
+
+function makeTestRunRecord(
+  input: StartTestRunInput,
+  now: () => number,
+  idFactory: () => string
+): TestRunRecord {
+  const startedAt = input.startedAt ?? now();
+  const createdAt = input.createdAt ?? startedAt;
+
+  return {
+    checks: [],
+    createdAt,
+    deviceId: input.deviceId,
+    durationMs: null,
+    finishedAt: null,
+    id: input.id ?? idFactory(),
+    platform: input.platform,
+    sessionId: input.sessionId ?? null,
+    startedAt,
+    status: input.status ?? "running",
+    suite: input.suite ?? "smoke",
+    summary: input.summary ?? "Smoke test started",
+    updatedAt: input.updatedAt ?? createdAt,
+    userId: input.userId
+  };
+}
+
+function makeShoppingListRecord(
+  input: CreateShoppingListInput,
+  now: () => number,
+  idFactory: () => string
+): ShoppingListRecord {
+  return {
+    id: input.id ?? idFactory(),
+    userId: input.userId,
+    items: input.items,
+    createdAt: input.createdAt ?? now(),
+    updatedAt: input.updatedAt ?? input.createdAt ?? now()
+  };
+}
+
+function makeRecipeRecord(
+  input: CreateRecipeInput,
+  now: () => number,
+  idFactory: () => string
+): RecipeRecord {
+  return {
+    id: input.id ?? idFactory(),
+    userId: input.userId,
+    title: input.title,
+    ingredients: input.ingredients,
+    steps: input.steps,
+    time: input.time,
+    calories: input.calories ?? null,
+    sourceUrl: input.sourceUrl ?? null,
+    createdAt: input.createdAt ?? now(),
+    updatedAt: input.updatedAt ?? input.createdAt ?? now()
+  };
+}
+
+function makeShoppingNotificationRecord(
+  input: CreateShoppingNotificationInput,
+  now: () => number,
+  idFactory: () => string
+): ShoppingNotificationRecord {
+  return {
+    id: input.id ?? idFactory(),
+    userId: input.userId,
+    payload: input.payload,
+    status: input.status ?? "pending",
+    createdAt: input.createdAt ?? now()
   };
 }
 
@@ -260,6 +550,28 @@ async function updateDevice(
   return selectFirst(db, `${devicesSql} WHERE id = ?`, [id], deviceRecordSchema);
 }
 
+async function selectManyRaw<T>(
+  db: WorkerBindings["DB"],
+  sql: string,
+  values: SqlPrimitive[],
+  parser: (row: Record<string, unknown>) => T
+): Promise<T[]> {
+  const prepared = bindStatement(db.prepare(sql), values);
+  const result = await prepared.all<Record<string, unknown>>();
+  return (result.results ?? []).map(parser);
+}
+
+async function selectFirstRaw<T>(
+  db: WorkerBindings["DB"],
+  sql: string,
+  values: SqlPrimitive[],
+  parser: (row: Record<string, unknown>) => T
+): Promise<T | null> {
+  const prepared = bindStatement(db.prepare(sql), values);
+  const result = await prepared.first<Record<string, unknown>>();
+  return result ? parser(result) : null;
+}
+
 function deviceUpdateEntries(input: UpdateDeviceInput): Array<[string, SqlPrimitive]> {
   const entries: Array<[string, SqlPrimitive]> = [];
 
@@ -307,6 +619,28 @@ async function stopSession(
 ): Promise<SessionRecord | null> {
   await execute(db, stopSessionSql, [endedAt, id]);
   return selectFirst(db, `${sessionsSql} WHERE id = ?`, [id], sessionRecordSchema);
+}
+
+async function completeTestRun(
+  db: WorkerBindings["DB"],
+  id: string,
+  input: CompleteTestRunInput,
+  now: () => number
+): Promise<TestRunRecord | null> {
+  const finishedAt = input.finishedAt ?? now();
+  const updatedAt = input.updatedAt ?? finishedAt;
+
+  await execute(db, completeTestRunSql, [
+    input.status,
+    input.summary,
+    JSON.stringify(input.checks),
+    finishedAt,
+    input.durationMs ?? null,
+    updatedAt,
+    id
+  ]);
+
+  return selectFirstRaw(db, `${testRunsSql} WHERE id = ?`, [id], parseTestRunRow);
 }
 
 async function selectMany<T>(
@@ -375,6 +709,135 @@ function normalizeRow(row: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
+function parseSessionSyncRow(row: Record<string, unknown>): SessionSyncRecord {
+  return {
+    id: stringValue(row.id),
+    platform: syncPlatformSchema.parse(row.platform),
+    userId: stringValue(row.user_id ?? row.userId),
+    deviceId: stringValue(row.device_id ?? row.deviceId),
+    context: parseJsonObject(row.context),
+    updatedAt: numberValue(row.updated_at ?? row.updatedAt)
+  };
+}
+
+function parseShoppingListRow(row: Record<string, unknown>): ShoppingListRecord {
+  return {
+    createdAt: numberValue(row.created_at ?? row.createdAt),
+    id: stringValue(row.id),
+    items: parseJsonArray(row.items, shoppingItemSchema),
+    updatedAt: numberValue(row.updated_at ?? row.updatedAt),
+    userId: stringValue(row.user_id ?? row.userId)
+  };
+}
+
+function parseRecipeRow(row: Record<string, unknown>): RecipeRecord {
+  return {
+    calories: row.calories == null ? null : numberValue(row.calories),
+    createdAt: numberValue(row.created_at ?? row.createdAt),
+    id: stringValue(row.id),
+    ingredients: parseJsonArray(row.ingredients, z.string().min(1)),
+    sourceUrl: stringOrNull(row.source_url ?? row.sourceUrl),
+    steps: parseJsonArray(row.steps, z.string().min(1)),
+    time: stringValue(row.time),
+    title: stringValue(row.title),
+    updatedAt: numberValue(row.updated_at ?? row.updatedAt),
+    userId: stringValue(row.user_id ?? row.userId)
+  };
+}
+
+function parseShoppingNotificationRow(row: Record<string, unknown>): ShoppingNotificationRecord {
+  return {
+    createdAt: numberValue(row.created_at ?? row.createdAt),
+    id: stringValue(row.id),
+    payload: parseJsonObject(row.payload),
+    status: shoppingNotificationStatusSchema.parse(row.status),
+    userId: stringValue(row.user_id ?? row.userId)
+  };
+}
+
+function parseTestRunRow(row: Record<string, unknown>): TestRunRecord {
+  return testRunRecordSchema.parse({
+    checks: parseJsonArray(row.checks, testRunCheckSchema),
+    createdAt: numberValue(row.created_at ?? row.createdAt),
+    deviceId: stringValue(row.device_id ?? row.deviceId),
+    durationMs: numberOrNull(row.duration_ms ?? row.durationMs),
+    finishedAt: numberOrNull(row.finished_at ?? row.finishedAt),
+    id: stringValue(row.id),
+    platform: platformSchema.parse(row.platform),
+    sessionId: stringOrNull(row.session_id ?? row.sessionId),
+    startedAt: numberValue(row.started_at ?? row.startedAt),
+    status: testRunStatusSchema.parse(row.status),
+    suite: stringValue(row.suite),
+    summary: stringValue(row.summary),
+    updatedAt: numberValue(row.updated_at ?? row.updatedAt),
+    userId: stringValue(row.user_id ?? row.userId)
+  });
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    return jsonObjectSchema.parse(JSON.parse(value));
+  }
+  return jsonObjectSchema.parse(value ?? {});
+}
+
+function parseJsonArray<T>(
+  value: unknown,
+  schema: z.ZodType<T>
+): T[] {
+  const parsed = typeof value === "string" ? JSON.parse(value) : value;
+  return z.array(schema).parse(parsed ?? []);
+}
+
+function numberValue(value: unknown): number {
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  throw new Error("Expected numeric value");
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value == null) {
+    return null;
+  }
+  return numberValue(value);
+}
+
+function stringValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  throw new Error("Expected string value");
+}
+
+function stringOrNull(value: unknown): string | null {
+  if (value == null) {
+    return null;
+  }
+  return stringValue(value);
+}
+
+function deduplicateSessions(sessions: SessionSyncRecord[]): SessionSyncRecord[] {
+  const seen = new Set<SyncPlatform>();
+  const latest: SessionSyncRecord[] = [];
+
+  for (const session of sessions) {
+    if (seen.has(session.platform)) {
+      continue;
+    }
+    seen.add(session.platform);
+    latest.push(session);
+  }
+
+  return latest;
+}
+
 const teamsSql = [
   "SELECT",
   "id, name, slug, created_at",
@@ -399,6 +862,30 @@ const sessionsSql = [
   "FROM sessions"
 ].join(" ");
 
+const sessionSyncSql = [
+  "SELECT",
+  "id, platform, user_id, device_id, context, updated_at",
+  "FROM session_syncs"
+].join(" ");
+
+const shoppingListsSql = [
+  "SELECT",
+  "id, user_id, items, created_at, updated_at",
+  "FROM shopping_lists"
+].join(" ");
+
+const testRunsSql = [
+  "SELECT",
+  "id, user_id, device_id, session_id, platform, suite, status, summary, checks, started_at, finished_at, duration_ms, created_at, updated_at",
+  "FROM test_runs"
+].join(" ");
+
+const recipesSql = [
+  "SELECT",
+  "id, user_id, title, ingredients, steps, time, calories, source_url, created_at, updated_at",
+  "FROM recipes"
+].join(" ");
+
 const insertTeamSql = [
   "INSERT INTO teams (id, name, slug, created_at)",
   "VALUES (?, ?, ?, ?)"
@@ -419,8 +906,39 @@ const insertSessionSql = [
   "VALUES (?, ?, ?, ?, ?, ?)"
 ].join(" ");
 
+const insertSessionSyncSql = [
+  "INSERT INTO session_syncs (id, platform, user_id, device_id, context, updated_at)",
+  "VALUES (?, ?, ?, ?, ?, ?)"
+].join(" ");
+
+const insertShoppingListSql = [
+  "INSERT INTO shopping_lists (id, user_id, items, created_at, updated_at)",
+  "VALUES (?, ?, ?, ?, ?)"
+].join(" ");
+
+const insertRecipeSql = [
+  "INSERT INTO recipes (id, user_id, title, ingredients, steps, time, calories, source_url, created_at, updated_at)",
+  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+].join(" ");
+
+const insertShoppingNotificationSql = [
+  "INSERT INTO shopping_notifications (id, user_id, payload, status, created_at)",
+  "VALUES (?, ?, ?, ?, ?)"
+].join(" ");
+
+const insertTestRunSql = [
+  "INSERT INTO test_runs (id, user_id, device_id, session_id, platform, suite, status, summary, checks, started_at, finished_at, duration_ms, created_at, updated_at)",
+  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+].join(" ");
+
 const stopSessionSql = [
   "UPDATE sessions",
   "SET ended_at = ?",
+  "WHERE id = ?"
+].join(" ");
+
+const completeTestRunSql = [
+  "UPDATE test_runs",
+  "SET status = ?, summary = ?, checks = ?, finished_at = ?, duration_ms = ?, updated_at = ?",
   "WHERE id = ?"
 ].join(" ");

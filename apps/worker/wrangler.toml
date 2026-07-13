@@ -4,6 +4,10 @@ main = "src/index.ts"
 compatibility_date = "2026-03-19"
 workers_dev = true
 
+[[routes]]
+pattern = "api-sally-sdk.heysalad.app/*"
+zone_name = "heysalad.app"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "heysalad-sally"

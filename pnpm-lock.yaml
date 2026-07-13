@@ -20,6 +20,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@heysalad/sally-sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       next:
         specifier: ^15.5.4
         version: 15.5.13(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

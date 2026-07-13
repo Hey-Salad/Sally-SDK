@@ -28,7 +28,13 @@ export function createAccessMiddleware(
 
   return async (context, next) => {
     context.set("auth", null);
-    if (context.req.path === "/") {
+    // /computers/link/* is the agent control plane: those routes authenticate with a
+    // device keypair signature or a hashed agent session token instead of Access.
+    if (
+      context.req.path === "/" ||
+      context.req.path === "/health" ||
+      context.req.path.startsWith("/computers/link/")
+    ) {
       await next();
       return;
     }

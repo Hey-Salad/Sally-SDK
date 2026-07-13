@@ -5,7 +5,7 @@ import type { WorkerEnv } from "./types.js";
 
 export function jsonError(
   context: Context<WorkerEnv>,
-  status: 400 | 401 | 404 | 500,
+  status: 400 | 401 | 403 | 404 | 409 | 410 | 500,
   error: string,
   details?: unknown
 ) {

@@ -209,3 +209,84 @@ export interface KioskUpdateOrderStatusInput {
   status: KioskOrderStatus;
   estimated_minutes?: number;
 }
+
+export interface ComputerPairingSessionCreateInput {
+  computerName?: string;
+  teamId?: string;
+}
+
+export interface ComputerPairingSessionCreateResult {
+  code: string;
+  expiresAt: number;
+  installCommand: string;
+  sessionId: string;
+}
+
+export interface ComputerPairingSessionClaimResult {
+  registrationToken: string;
+  registrationTokenExpiresAt: number;
+  sessionId: string;
+}
+
+export interface ComputerAgentRegisterInput {
+  hostname?: string;
+  name: string;
+  platform?: string;
+  publicKey: string;
+  registrationToken: string;
+}
+
+export interface ComputerAgent {
+  capabilities: string[];
+  createdAt: number;
+  hostname: string | null;
+  id: string;
+  lastSeen: number | null;
+  name: string;
+  platform: string | null;
+  publicKey: string;
+  revokedAt: number | null;
+  status: "active" | "revoked";
+  teamId: string | null;
+  userId: string;
+}
+
+export interface ComputerAgentConnectInput {
+  agentId: string;
+  signature: string;
+  timestamp: number;
+}
+
+export interface ComputerAgentConnectResult {
+  connectionId: string;
+  expiresAt: number;
+  sessionToken: string;
+}
+
+export interface ComputerCommandSubmitInput {
+  capability: string;
+  command: string;
+}
+
+export interface ComputerCommand {
+  agentId: string;
+  capability: string;
+  command: string;
+  createdAt: number;
+  denialReason: string | null;
+  id: string;
+  result: string | null;
+  status: "queued" | "denied" | "completed" | "failed";
+  updatedAt: number;
+  userId: string;
+}
+
+export interface ComputerAgentSession {
+  agentId: string;
+  sessionToken: string;
+}
+
+export interface ComputerCommandResultInput {
+  result?: string | null;
+  status: "completed" | "failed";
+}
