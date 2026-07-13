@@ -4,13 +4,14 @@
   "description": "Programmatic SDK for Sally device, AI, auth, and tunnel operations.",
   "license": "MIT",
   "type": "module",
-  "homepage": "https://github.com/Hey-Salad/sally#readme",
+  "homepage": "https://github.com/Hey-Salad/Sally-SDK/tree/main/packages/sdk#readme",
   "bugs": {
-    "url": "https://github.com/Hey-Salad/sally/issues"
+    "url": "https://github.com/Hey-Salad/Sally-SDK/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Hey-Salad/sally.git"
+    "url": "git+https://github.com/Hey-Salad/Sally-SDK.git",
+    "directory": "packages/sdk"
   },
   "keywords": [
     "heysalad",
