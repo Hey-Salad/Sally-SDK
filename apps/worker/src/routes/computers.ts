@@ -207,15 +207,11 @@ export const computersRoutes = new Hono<WorkerEnv>()
 
 function requireUserId(context: Context<WorkerEnv>): string | null {
   const claims = context.get("auth");
-  if (claims) {
-    return claims.email ?? claims.sub;
+  if (!claims) {
+    return null;
   }
-  // Auth is enforced by the Access middleware when REQUIRE_ACCESS_AUTH=true; the
-  // local-dev identity only exists so the flow is testable with auth disabled.
-  if (context.env.REQUIRE_ACCESS_AUTH !== "true" && context.env.SALLY_ENV === "development") {
-    return "local-dev";
-  }
-  return null;
+  const userId = claims.email?.trim() || claims.sub.trim();
+  return userId.length > 0 ? userId : null;
 }
 
 function readAgentSession(

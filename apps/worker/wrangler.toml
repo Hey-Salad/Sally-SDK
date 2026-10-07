@@ -14,6 +14,8 @@ database_name = "heysalad-sally"
 database_id = "5897d527-ae67-468e-bc8d-bd21f3ff5fac"
 migrations_dir = "migrations"
 
+# Auth fails closed in the Worker. Do not set ALLOW_INSECURE_LOCAL_DEV in this file.
+# Local wrangler dev uses .dev.vars (see .dev.vars.example), which is not deployed.
 [vars]
-REQUIRE_ACCESS_AUTH = "false"
-SALLY_ENV = "development"
+SALLY_ENV = "production"
+ALLOWED_ORIGINS = "https://heysalad-sally-dashboard.pages.dev"

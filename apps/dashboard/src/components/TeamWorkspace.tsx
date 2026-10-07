@@ -5,7 +5,7 @@ import { startTransition, useEffect, useState } from "react";
 import { createTeam, createUser, listTeams, listUsers, makeSlug } from "../lib/api";
 import type { TeamRecord, TeamRole, UserRecord } from "../lib/types";
 
-const roles: TeamRole[] = ["owner", "admin", "developer", "viewer"];
+const roles: TeamRole[] = ["developer", "viewer"];
 
 export function TeamWorkspace() {
   const [teams, setTeams] = useState<TeamRecord[]>([]);
@@ -30,7 +30,7 @@ export function TeamWorkspace() {
         <p className="eyebrow">Invite flow</p>
         <h1>Bring the right people into the room.</h1>
         <p className="hero-copy">
-          Invite teammates with the role they need from day one. Keep ownership crisp and device access calm.
+          Invite developers and viewers from this form. Owner and admin accounts are assigned in the database, not here.
         </p>
         <form
           className="stack-form"

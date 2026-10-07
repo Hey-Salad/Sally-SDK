@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { ZodError } from "zod";
 
 import { createAccessMiddleware, type AccessMiddlewareOptions } from "./auth/middleware.js";
+import { matchAllowedOrigin } from "./security/cors.js";
 import { createComputerAgentService } from "./computer/service.js";
 import { createD1ComputerStore } from "./computer/store.js";
 import type { ComputerAgentService } from "./computer/types.js";
@@ -36,7 +37,8 @@ export function createApp(options: AppOptions = {}): Hono<WorkerEnv> {
     cors({
       allowHeaders: ["Authorization", "Cf-Access-Jwt-Assertion", "Content-Type"],
       allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
-      origin: "*"
+      credentials: true,
+      origin: (origin, context) => matchAllowedOrigin(origin, context.env.ALLOWED_ORIGINS)
     })
   );
 

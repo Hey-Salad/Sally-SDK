@@ -149,6 +149,7 @@ You only need a subset depending on the flow.
 - `SALLY_WORKER_URL`
 - `SALLY_STREAM_WORKDIR`
 - `SALLY_TUNNEL_MODE`
+- `SALLY_ACCESS_TOKEN` for the deployed Worker (a Cloudflare Access JWT). `sally device start` forwards the token saved by `sally auth login --token`. See [worker-auth.md](./worker-auth.md).
 
 ### Optional local agent tuning
 
@@ -168,7 +169,7 @@ You only need a subset depending on the flow.
 - Pre-publish, use `node packages/cli/dist/index.js ...` instead of `npx @heysalad/sally ...`.
 - Quick tunnels are useful for fast setup but are not stable enough for long-lived streaming. Named tunnels with a controlled domain are the production path.
 - Android device discovery works when `adb` is installed, but Android stream startup is not implemented yet in this repo.
-- Cloudflare Access verification exists in the Worker, but the live deployment currently runs with `REQUIRE_ACCESS_AUTH=false`.
+- The Worker requires Cloudflare Access. See [worker-auth.md](./worker-auth.md). `ALLOW_INSECURE_LOCAL_DEV` is local-only and is ignored in production.
 
 ## Troubleshooting
 
