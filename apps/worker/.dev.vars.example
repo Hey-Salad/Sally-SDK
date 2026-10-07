@@ -1,6 +1,6 @@
 # Copy to .dev.vars for `wrangler dev` only. `wrangler deploy` does not upload this file.
 # Both values are required to skip Access, and they are ignored when SALLY_ENV=production.
-# Computer control, /chat, /recipes/extract, and /users still require a verified Access JWT.
+# Record routes, computer control, /chat, /recipes/extract, and /users still require a verified Access JWT.
 SALLY_ENV=development
 ALLOW_INSECURE_LOCAL_DEV=true
 ALLOWED_ORIGINS=http://localhost:3000,https://heysalad-sally-dashboard.pages.dev

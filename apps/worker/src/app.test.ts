@@ -85,13 +85,23 @@ describe("worker routes", () => {
 
   it("starts and stops sessions", async () => {
     const queries = createQueries({
+      listSessions: vi.fn().mockResolvedValue([
+        {
+          deviceId: "device-1",
+          endedAt: null,
+          id: "session-1",
+          ipAddress: "127.0.0.1",
+          startedAt: 1742395000000,
+          userId: "peter@heysalad.io"
+        }
+      ]),
       startSession: vi.fn().mockResolvedValue({
         deviceId: "device-1",
         endedAt: null,
         id: "session-1",
         ipAddress: "127.0.0.1",
         startedAt: 1742395000000,
-        userId: "user-1"
+        userId: "peter@heysalad.io"
       }),
       stopSession: vi.fn().mockResolvedValue({
         deviceId: "device-1",
@@ -126,7 +136,7 @@ describe("worker routes", () => {
     expect(queries.startSession).toHaveBeenCalledWith({
       deviceId: "device-1",
       ipAddress: "127.0.0.1",
-      userId: "user-1"
+      userId: "peter@heysalad.io"
     });
     expect(queries.stopSession).toHaveBeenCalledWith("session-1", 1742395600000);
   });
@@ -270,7 +280,7 @@ describe("worker routes", () => {
       sessionId: "session-1",
       suite: "smoke",
       summary: "Smoke test started for HeySalad iPhone",
-      userId: "user-1"
+      userId: "peter@heysalad.io"
     });
     expect(queries.completeTestRun).toHaveBeenCalledWith(
       "run-1",
@@ -547,7 +557,16 @@ function createQueries(overrides: Partial<QueryService> = {}): QueryService {
     listSessionsForUser: vi.fn(async () => []),
     listTestRuns: vi.fn(async () => []),
     listTeams: vi.fn(async () => []),
-    listUsers: vi.fn(async () => []),
+    listUsers: vi.fn(async () => [
+      {
+        createdAt: 1,
+        email: "peter@heysalad.io",
+        id: "user-owner",
+        name: "Peter",
+        role: "owner" as const,
+        teamId: "team-1"
+      }
+    ]),
     startTestRun: vi.fn(async () => {
       throw new Error("startTestRun not mocked");
     }),

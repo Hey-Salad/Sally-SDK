@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireVerifiedUser } from "../auth/actor.js";
+import { requireCaller } from "../auth/actor.js";
 import { jsonError, readJson } from "../http.js";
 import { createChatCompletionResponse, type OpenAIChatMessage } from "../services/openai.js";
 import type { WorkerEnv } from "../types.js";
@@ -11,18 +11,18 @@ export const CHAT_MESSAGE_MAX_CHARS = 8_000;
 const chatSchema = z.object({
   message: z.string().min(1).max(CHAT_MESSAGE_MAX_CHARS),
   sessionId: z.string().min(1).optional(),
-  userId: z.string().min(1).max(320)
+  userId: z.string().min(1).max(320).optional()
 });
 
 export const chatRoutes = new Hono<WorkerEnv>().post("/chat", async (context) => {
-  const actor = requireVerifiedUser(context);
-  if (actor instanceof Response) {
-    return actor;
+  const caller = await requireCaller(context);
+  if (caller instanceof Response) {
+    return caller;
   }
 
   try {
     const payload = await readJson(context, chatSchema);
-    const messages = buildMessages(payload.userId, payload.sessionId, payload.message);
+    const messages = buildMessages(caller.userId, payload.sessionId, payload.message);
     return await createChatCompletionResponse(context.env, messages);
   } catch (error) {
     return jsonError(context, 400, "Invalid chat payload", toMessage(error));

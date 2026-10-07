@@ -94,6 +94,12 @@ export function assertPublicHttpsUrl(input: string): { host: string; url: URL } 
   return { host, url };
 }
 
+// DNS-over-HTTPS is a best-effort screen. The later fetch is not pinned to these
+// answers, so a name can rebind between the lookup and the connection. Workers
+// will not connect to a literal address we resolved, which is why this cannot
+// close rebinding to a private address. Same-zone names are refused in
+// isBlockedHost, and wrangler sets global_fetch_strictly_public so a
+// heysalad.app hostname is not routed straight at the zone origin.
 async function assertPublicDns(host: string, fetchImpl: typeof fetch, timeoutMs: number): Promise<void> {
   const [ipv4, ipv6] = await Promise.all([
     resolveDns(host, "A", fetchImpl, timeoutMs),
@@ -244,6 +250,10 @@ function isBlockedHost(host: string): boolean {
     return false;
   }
 
+  if (isOwnZoneHost(host)) {
+    return true;
+  }
+
   if (
     host === "localhost" ||
     host.endsWith(".localhost") ||
@@ -263,6 +273,15 @@ function isBlockedHost(host: string): boolean {
   );
 }
 
+function isOwnZoneHost(host: string): boolean {
+  return (
+    host === "heysalad.app" ||
+    host.endsWith(".heysalad.app") ||
+    host === "workers.dev" ||
+    host.endsWith(".workers.dev")
+  );
+}
+
 function isIpAddress(host: string): boolean {
   return classifyAddress(host) !== "name";
 }
@@ -271,7 +290,7 @@ function classifyAddress(host: string): "blocked" | "name" | "public" {
   const normalized = normalizeHost(host);
   const ipv4 = parseIPv4(normalized);
   if (ipv4) {
-    return isBlockedIPv4(ipv4) ? "blocked" : "public";
+    return isGlobalIPv4(ipv4) ? "public" : "blocked";
   }
   if (!normalized.includes(":")) {
     return "name";
@@ -281,15 +300,7 @@ function classifyAddress(host: string): "blocked" | "name" | "public" {
   if (!groups) {
     return "blocked";
   }
-
-  const mapped = embeddedIPv4(groups);
-  if (mapped) {
-    return isBlockedIPv4(mapped) ? "blocked" : "public";
-  }
-  if (isBlockedIPv6(groups)) {
-    return "blocked";
-  }
-  return "public";
+  return isGlobalIPv6(groups) ? "public" : "blocked";
 }
 
 function parseIPv4(host: string): [number, number, number, number] | null {
@@ -311,24 +322,39 @@ function parseIPv4(host: string): [number, number, number, number] | null {
   return octets as [number, number, number, number];
 }
 
-function isBlockedIPv4(octets: [number, number, number, number]): boolean {
-  const [a, b] = octets;
+function isGlobalIPv4(octets: [number, number, number, number]): boolean {
+  const [a, b, c] = octets;
   if (a === 0 || a === 10 || a === 127) {
-    return true;
+    return false;
   }
   if (a === 100 && b >= 64 && b <= 127) {
-    return true;
+    return false;
   }
   if (a === 169 && b === 254) {
-    return true;
+    return false;
   }
   if (a === 172 && b >= 16 && b <= 31) {
-    return true;
+    return false;
+  }
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) {
+    return false;
+  }
+  if (a === 192 && b === 88 && c === 99) {
+    return false;
   }
   if (a === 192 && b === 168) {
-    return true;
+    return false;
   }
-  return a >= 224;
+  if (a === 198 && (b === 18 || b === 19)) {
+    return false;
+  }
+  if (a === 198 && b === 51 && c === 100) {
+    return false;
+  }
+  if (a === 203 && b === 0 && c === 113) {
+    return false;
+  }
+  return a < 224;
 }
 
 function expandIPv6(host: string): number[] | null {
@@ -371,44 +397,33 @@ function expandIPv6(host: string): number[] | null {
   return [...head, ...Array<number>(missing).fill(0), ...tail];
 }
 
-function embeddedIPv4(groups: number[]): [number, number, number, number] | null {
-  const mapped =
-    groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
-  const nat64 =
-    groups[0] === 0x0064 &&
-    groups[1] === 0xff9b &&
-    groups.slice(2, 6).every((group) => group === 0);
-  const sixToFour = groups[0] === 0x2002;
-
-  if (mapped || nat64) {
-    return toIPv4(groups[6] ?? 0, groups[7] ?? 0);
+function isGlobalIPv6(groups: number[]): boolean {
+  const first = groups[0] ?? 0;
+  const second = groups[1] ?? 0;
+  // Global unicast is 2000::/3. Everything else (IPv4-compatible ::/96,
+  // IPv4-mapped ::ffff:0:0/96, NAT64 64:ff9b::/96 and 64:ff9b:1::/48,
+  // site-local fec0::/10, ULA, link-local, multicast, unspecified, loopback)
+  // is denied without unwrapping.
+  if ((first & 0xe000) !== 0x2000) {
+    return false;
   }
-  if (sixToFour) {
-    return toIPv4(groups[1] ?? 0, groups[2] ?? 0);
+  if (first === 0x2001 && second === 0) {
+    return false;
   }
-  return null;
-}
-
-function toIPv4(high: number, low: number): [number, number, number, number] {
-  return [(high >> 8) & 0xff, high & 0xff, (low >> 8) & 0xff, low & 0xff];
-}
-
-function isBlockedIPv6(groups: number[]): boolean {
-  const [first] = groups;
-  if (first === undefined) {
-    return true;
+  if (first === 0x2002) {
+    return false;
   }
-  if (groups.every((group) => group === 0)) {
-    return true;
+  if (first === 0x2001 && second === 0x0db8) {
+    return false;
   }
-  if (groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1) {
-    return true;
+  if (first === 0x2001 && second === 0x0002 && (groups[2] ?? 0) === 0) {
+    return false;
   }
-  if (first >= 0xfc00 && first <= 0xfdff) {
-    return true;
+  if (first === 0x2001 && ((second & 0xfff0) === 0x0010 || (second & 0xfff0) === 0x0020)) {
+    return false;
   }
-  if ((first & 0xffc0) === 0xfe80) {
-    return true;
+  if (first === 0x3fff && (second & 0xf000) === 0) {
+    return false;
   }
-  return (first & 0xff00) === 0xff00;
+  return true;
 }

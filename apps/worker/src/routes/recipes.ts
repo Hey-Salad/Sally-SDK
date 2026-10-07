@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireVerifiedUser } from "../auth/actor.js";
+import { isManager, requireCaller, sameUser } from "../auth/actor.js";
 import { jsonError, readJson } from "../http.js";
 import { UnsafeUrlError } from "../security/public-url.js";
 import { fetchRecipeExtraction } from "../services/openai.js";
@@ -17,7 +17,7 @@ const recipeSchema = z.object({
 
 const extractSchema = z.object({
   url: z.string().url().max(2048),
-  userId: z.string().min(1).max(320)
+  userId: z.string().min(1).max(320).optional()
 });
 
 const flattenedSaveRecipeSchema = z.object({
@@ -27,26 +27,26 @@ const flattenedSaveRecipeSchema = z.object({
   sourceUrl: z.string().url().nullable().optional(),
   time: z.string().min(1),
   title: z.string().min(1),
-  userId: z.string().min(1)
+  userId: z.string().min(1).optional()
 });
 
 const nestedSaveRecipeSchema = z.object({
   recipe: recipeSchema,
-  userId: z.string().min(1)
+  userId: z.string().min(1).optional()
 });
 
 const saveRecipeSchema = z.union([flattenedSaveRecipeSchema, nestedSaveRecipeSchema]);
 
 export const recipesRoutes = new Hono<WorkerEnv>()
   .post("/extract", async (context) => {
-    const actor = requireVerifiedUser(context);
-    if (actor instanceof Response) {
-      return actor;
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
     }
 
     try {
       const payload = await readJson(context, extractSchema);
-      const extracted = await fetchRecipeExtraction(context.env, payload.url, payload.userId);
+      const extracted = await fetchRecipeExtraction(context.env, payload.url, caller.userId);
       return context.json(extracted);
     } catch (error) {
       if (error instanceof UnsafeUrlError) {
@@ -56,16 +56,31 @@ export const recipesRoutes = new Hono<WorkerEnv>()
     }
   })
   .post("/", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     try {
       const payload = await readJson(context, saveRecipeSchema);
-      const recipe = await context.get("queries").createRecipe(normalizeRecipePayload(payload));
+      const recipe = await context.get("queries").createRecipe(normalizeRecipePayload(payload, caller.userId));
       return context.json(recipe, 201);
     } catch (error) {
       return jsonError(context, 400, "Invalid recipe payload", toMessage(error));
     }
   })
   .get("/:userId", async (context) => {
-    const recipes = await context.get("queries").listRecipes(context.req.param("userId"));
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
+    const requested = context.req.param("userId");
+    if (!isManager(caller) && !sameUser(requested, caller.userId)) {
+      return jsonError(context, 403, "Insufficient permissions");
+    }
+
+    const recipes = await context.get("queries").listRecipes(requested);
     return context.json(recipes);
   });
 
@@ -74,7 +89,8 @@ function toMessage(error: unknown): string {
 }
 
 function normalizeRecipePayload(
-  payload: z.infer<typeof saveRecipeSchema>
+  payload: z.infer<typeof saveRecipeSchema>,
+  userId: string
 ): {
   calories?: number | null | undefined;
   ingredients: string[];
@@ -87,9 +103,12 @@ function normalizeRecipePayload(
   if ("recipe" in payload) {
     return {
       ...payload.recipe,
-      userId: payload.userId
+      userId
     };
   }
 
-  return payload;
+  return {
+    ...payload,
+    userId
+  };
 }

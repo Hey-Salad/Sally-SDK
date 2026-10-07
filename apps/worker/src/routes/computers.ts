@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 
+import { canonicalUserId } from "../auth/actor.js";
 import { ComputerAgentError } from "../computer/types.js";
 import { jsonError, readJson } from "../http.js";
 import type { WorkerEnv } from "../types.js";
@@ -210,8 +211,7 @@ function requireUserId(context: Context<WorkerEnv>): string | null {
   if (!claims) {
     return null;
   }
-  const userId = claims.email?.trim() || claims.sub.trim();
-  return userId.length > 0 ? userId : null;
+  return canonicalUserId(claims);
 }
 
 function readAgentSession(

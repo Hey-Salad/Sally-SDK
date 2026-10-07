@@ -116,7 +116,7 @@ The Worker requires a Cloudflare Access JWT. `REQUIRE_ACCESS_AUTH` is ignored. T
 
 See [worker-auth.md](./worker-auth.md) for the secrets, the D1 owner bootstrap, allowed browser origins, and the Sally Mac client change.
 
-Local `wrangler dev` can opt out for ordinary device routes by copying `apps/worker/.dev.vars.example` to `.dev.vars`. That file is not deployed. Chat, recipe extraction, user administration, and computer control still require a JWT.
+Local `wrangler dev` can skip the middleware JWT check by copying `apps/worker/.dev.vars.example` to `.dev.vars`. That file is not deployed. Devices, sessions, shopping, recipes, runs, teams, chat, recipe extraction, user administration, and computer control still require a JWT on the request.
 
 ## Recommended Team Rollout
 

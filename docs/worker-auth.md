@@ -48,9 +48,12 @@ If the app currently constructs the client with only the base URL, chat, recipe 
 These routes require that user JWT:
 
 - `POST /chat`
-- `POST /recipes/extract`
+- `POST /recipes/extract` and saved-recipe reads and writes
+- sessions, shopping lists, test runs, devices, and teams
 - `POST /computers/pairing-sessions` and `POST /computers/pairing-sessions/claim`
 - `POST /computers/agents`, `GET /computers/agents`, command submit, revoke, and audit logs
+
+`SallyClient` can keep sending `userId`. The Worker ignores it and stores the Access email (lowercased), or the JWT `sub` when the token has no email. A read for a different user returns 403 unless that email is an owner or admin in D1. Device registration and team creation require that owner or admin row: the host agent JWT has to belong to one of those people, because a device record includes `tunnelUrl` and `agentHost`. Owners and admins can list every session, run, and team. A developer or viewer only sees their own records, and devices only for their own team.
 
 The paired agent on the Mac does not use that JWT for its own channel. These routes stay on the device signature and the agent session headers (`X-Sally-Agent-Id`, `X-Sally-Agent-Session`):
 
@@ -58,14 +61,14 @@ The paired agent on the Mac does not use that JWT for its own channel. These rou
 - `GET /computers/link/commands`
 - `POST /computers/link/commands/:commandId/result`
 
-There is no shared anonymous computer user. Pairing and command submission run as the email on the Access JWT (or the JWT `sub` when email is absent).
+There is no shared anonymous computer user. Pairing and command submission run as the lowercased email on the Access JWT (or the JWT `sub` when email is absent).
 
 `GET /` and `GET /health` stay open for probes.
 
 ## CLI and host agent in this repo
 
 - `sally pair` refuses to run without a saved Access JWT.
-- `sally device start` forwards that JWT to the host agent as `SALLY_ACCESS_TOKEN`. The agent sends it as `Authorization: Bearer` on device registration. Set the same variable when the agent is launched some other way.
+- `sally device start` forwards that JWT to the host agent as `SALLY_ACCESS_TOKEN`. The agent sends it as `Authorization: Bearer` on device registration. That email has to be an owner or admin in D1, or `POST /devices` returns 403. Set the same variable when the agent is launched some other way.
 - `sally auth login --token <jwt>` is still how a person stores the token. The CLI does not perform an interactive Access login.
 
 ## Dashboard
@@ -76,10 +79,6 @@ The Pages dashboard and the API are on different sites. After Access is enabled,
 
 ## Local development
 
-Copy `apps/worker/.dev.vars.example` to `apps/worker/.dev.vars`. That file is gitignored and is not uploaded by `wrangler deploy`. It sets `SALLY_ENV=development` and `ALLOW_INSECURE_LOCAL_DEV=true`, which skips Access for ordinary device, session, and team routes only. Chat, recipe extraction, user administration, and computer control still require a verified JWT.
+Copy `apps/worker/.dev.vars.example` to `apps/worker/.dev.vars`. That file is gitignored and is not uploaded by `wrangler deploy`. It sets `SALLY_ENV=development` and `ALLOW_INSECURE_LOCAL_DEV=true`, which skips the Access JWT check in middleware. Record routes, chat, recipe extraction, user administration, and computer control still require a verified JWT on the request. The local flag does not open devices, sessions, shopping, recipes, runs, or teams.
 
-Recipe extraction resolves hostnames through `https://cloudflare-dns.com/dns-query` and refuses the fetch when any address is private, link-local, or metadata. Redirects are not followed. The page body is capped at 256 KiB and the fetch times out after 8 seconds.
-
-## Still client-supplied
-
-Sessions, shopping lists, saved recipes, and test runs still accept a `userId` from the request. Access proves who the caller is; it does not yet force those records to that identity. The Sally Mac client can keep sending `userId`. Tightening that is a separate change.
+Recipe extraction allows only global addresses. IPv4 documentation, benchmarking, private, loopback, link-local, and CGNAT ranges are refused. IPv6 is allowed only inside `2000::/3`, and Teredo, 6to4, documentation, benchmarking, and ORCHID prefixes inside that block are refused too. That covers IPv4-compatible addresses such as `[::a9fe:a9fe]`, local NAT64 `64:ff9b:1::/48`, and site-local `fec0::/10` without unwrapping them. Hostnames on `heysalad.app` and `workers.dev` are refused before any fetch. Other hostnames are checked with DNS-over-HTTPS at `https://cloudflare-dns.com/dns-query`. That lookup is not the address the Worker later connects to: Workers will not let us pin the socket to the answer, so a name can still rebind to a private address between the check and the connection. `compatibility_flags` includes `global_fetch_strictly_public`, which stops a same-zone name from being routed straight at the zone origin. Redirects are not followed. The page body is capped at 256 KiB and the fetch times out after 8 seconds.

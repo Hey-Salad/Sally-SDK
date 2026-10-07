@@ -9,6 +9,8 @@ This reference documents the live Worker routes, the local CLI contract, and the
 
 ## Worker API
 
+Calls other than `GET /`, `GET /health`, and `/computers/link/*` need a Cloudflare Access JWT. A `userId` in the body or path is not the caller. The Worker uses the verified email, and owners or admins are the only identities that can read someone else's records or write devices and teams. See [worker-auth.md](./worker-auth.md).
+
 ### `GET /`
 
 Health-style check.

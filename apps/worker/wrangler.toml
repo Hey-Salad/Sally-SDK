@@ -2,6 +2,9 @@ name = "heysalad-sally-worker"
 account_id = "67a17ada4efeee4480283035cc0c5f90"
 main = "src/index.ts"
 compatibility_date = "2026-03-19"
+# Same-zone fetch() must hit the Cloudflare edge, not the zone origin.
+# This does not block RFC1918. The URL classifier does that.
+compatibility_flags = ["global_fetch_strictly_public"]
 workers_dev = true
 
 [[routes]]
