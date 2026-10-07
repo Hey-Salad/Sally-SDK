@@ -19,8 +19,10 @@ import { WorkerClient } from "./WorkerClient.js";
 
 async function runFromEnv(): Promise<void> {
   const agentHost = process.env.SALLY_AGENT_HOST ?? os.hostname();
+  const accessToken = process.env.SALLY_ACCESS_TOKEN?.trim();
   const workerClient = new WorkerClient({
-    baseUrl: readRequiredEnv("SALLY_WORKER_URL")
+    baseUrl: readRequiredEnv("SALLY_WORKER_URL"),
+    ...(accessToken ? { accessToken } : {})
   });
   const daemon = new SallyAgentDaemon({
     agentHost,

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { isManager, requireCaller, sameUser } from "../auth/actor.js";
 import { jsonError, readJson } from "../http.js";
 import type { WorkerEnv } from "../types.js";
 
@@ -16,38 +17,61 @@ const shoppingListSchema = z.object({
   id: z.string().min(1).optional(),
   items: z.array(shoppingItemSchema).min(1),
   updatedAt: z.number().int().optional(),
-  userId: z.string().min(1)
+  userId: z.string().min(1).optional()
 });
 
 const shoppingNotifySchema = z.object({
   items: z.array(shoppingItemSchema).optional(),
   payload: z.record(z.unknown()).optional(),
-  userId: z.string().min(1)
+  userId: z.string().min(1).optional()
 });
 
 export const shoppingRoutes = new Hono<WorkerEnv>()
   .post("/list", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     try {
       const payload = await readJson(context, shoppingListSchema);
-      const shoppingList = await context.get("queries").createShoppingList(payload);
+      const shoppingList = await context.get("queries").createShoppingList({
+        ...payload,
+        userId: caller.userId
+      });
       return context.json(shoppingList, 201);
     } catch (error) {
       return jsonError(context, 400, "Invalid shopping list payload", toMessage(error));
     }
   })
   .get("/list/:userId", async (context) => {
-    const shoppingList = await context.get("queries").getLatestShoppingList(context.req.param("userId"));
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
+    const requested = context.req.param("userId");
+    if (!isManager(caller) && !sameUser(requested, caller.userId)) {
+      return jsonError(context, 403, "Insufficient permissions");
+    }
+
+    const shoppingList = await context.get("queries").getLatestShoppingList(requested);
     if (!shoppingList) {
       return jsonError(context, 404, "Shopping list not found");
     }
     return context.json(shoppingList);
   })
   .post("/start", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     try {
       const payload = await readJson(context, shoppingNotifySchema);
       const notification = await context.get("queries").createShoppingNotification({
         payload: toNotificationPayload(payload),
-        userId: payload.userId
+        userId: caller.userId
       });
       return context.json(notification, 201);
     } catch (error) {
@@ -55,11 +79,16 @@ export const shoppingRoutes = new Hono<WorkerEnv>()
     }
   })
   .post("/notify", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     try {
       const payload = await readJson(context, shoppingNotifySchema);
       const notification = await context.get("queries").createShoppingNotification({
         payload: toNotificationPayload(payload),
-        userId: payload.userId
+        userId: caller.userId
       });
       return context.json(notification, 201);
     } catch (error) {

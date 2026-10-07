@@ -1,3 +1,4 @@
+import { fetchPublicHttpsText } from "../security/public-url.js";
 import type { WorkerBindings } from "../types.js";
 
 export interface OpenAIChatMessage {
@@ -132,17 +133,7 @@ export async function createChatCompletionResponse(
 }
 
 async function fetchPageText(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "Sally Recipe Extractor"
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Unable to fetch recipe URL: ${response.status}`);
-  }
-
-  const html = await response.text();
+  const html = await fetchPublicHttpsText(url);
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")

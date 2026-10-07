@@ -22,23 +22,17 @@ export function toWebSocketUrl(tunnelUrl: string): string {
 }
 
 export async function listDevices(): Promise<DeviceRecord[]> {
-  const response = await fetch(getWorkerUrl("/devices"), {
-    cache: "no-store"
-  });
+  const response = await workerFetch("/devices");
   return readList<DeviceRecord>(response);
 }
 
 export async function listSessions(): Promise<SessionRecord[]> {
-  const response = await fetch(getWorkerUrl("/sessions"), {
-    cache: "no-store"
-  });
+  const response = await workerFetch("/sessions");
   return readList<SessionRecord>(response);
 }
 
 export async function listTeams(): Promise<TeamRecord[]> {
-  const response = await fetch(getWorkerUrl("/teams"), {
-    cache: "no-store"
-  });
+  const response = await workerFetch("/teams");
   return readList<TeamRecord>(response);
 }
 
@@ -46,7 +40,7 @@ export async function createTeam(input: {
   name: string;
   slug: string;
 }): Promise<TeamRecord> {
-  const response = await fetch(getWorkerUrl("/teams"), {
+  const response = await workerFetch("/teams", {
     body: JSON.stringify(input),
     headers: {
       "Content-Type": "application/json"
@@ -57,9 +51,7 @@ export async function createTeam(input: {
 }
 
 export async function listUsers(): Promise<UserRecord[]> {
-  const response = await fetch(getWorkerUrl("/users"), {
-    cache: "no-store"
-  });
+  const response = await workerFetch("/users");
   return readList<UserRecord>(response);
 }
 
@@ -69,7 +61,7 @@ export async function createUser(input: {
   role: TeamRole;
   teamId: string | null;
 }): Promise<UserRecord> {
-  const response = await fetch(getWorkerUrl("/users"), {
+  const response = await workerFetch("/users", {
     body: JSON.stringify(input),
     headers: {
       "Content-Type": "application/json"
@@ -103,6 +95,14 @@ async function readJson(response: Response): Promise<unknown> {
     throw new Error(fallback || `Worker request failed with status ${response.status}`);
   }
   return response.json();
+}
+
+function workerFetch(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(getWorkerUrl(path), {
+    ...init,
+    cache: "no-store",
+    credentials: "include"
+  });
 }
 
 function ensureTrailingSlash(value: string): string {
