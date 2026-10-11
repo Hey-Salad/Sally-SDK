@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { isManager, requireCaller } from "../auth/actor.js";
 import { jsonError, readJson } from "../http.js";
 import type { WorkerEnv } from "../types.js";
 
@@ -13,10 +14,26 @@ const teamSchema = z.object({
 
 export const teamsRoutes = new Hono<WorkerEnv>()
   .get("/", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     const items = await context.get("queries").listTeams();
-    return context.json({ items });
+    const visible = isManager(caller)
+      ? items
+      : items.filter((item) => caller.teamId !== null && item.id === caller.teamId);
+    return context.json({ items: visible });
   })
   .post("/", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+    if (!isManager(caller)) {
+      return jsonError(context, 403, "Insufficient permissions");
+    }
+
     try {
       const payload = await readJson(context, teamSchema);
       const team = await context.get("queries").createTeam(payload);

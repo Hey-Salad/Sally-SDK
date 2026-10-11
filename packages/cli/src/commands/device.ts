@@ -115,11 +115,18 @@ async function startDeviceDaemon(options: {
   const workerUrl = options.workerUrl ?? process.env.SALLY_API_BASE_URL ?? config.apiBaseUrl;
   const mode = options.mode ?? "quick";
   const spinner = logger.start("Starting Sally device agent");
+  if (!config.authToken) {
+    logger.warn(
+      "No Cloudflare Access token saved. The device agent will be rejected by the worker until you run `sally auth login --token <jwt>`."
+    );
+  }
+
   const environment = {
     ...process.env,
     SALLY_STREAM_WORKDIR: resolveStreamWorkingDirectory(),
     SALLY_TUNNEL_MODE: mode,
-    SALLY_WORKER_URL: workerUrl
+    SALLY_WORKER_URL: workerUrl,
+    ...(config.authToken ? { SALLY_ACCESS_TOKEN: config.authToken } : {})
   };
 
   if (options.foreground) {

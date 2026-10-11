@@ -9,6 +9,8 @@ This reference documents the live Worker routes, the local CLI contract, and the
 
 ## Worker API
 
+Calls other than `GET /`, `GET /health`, and `/computers/link/*` need a Cloudflare Access JWT. A `userId` in the body or path is not the caller. The Worker uses the verified email, and owners or admins are the only identities that can read someone else's records or write devices and teams. See [worker-auth.md](./worker-auth.md).
+
 ### `GET /`
 
 Health-style check.
@@ -140,33 +142,26 @@ Payload:
 
 ### `GET /users`
 
-List users.
+List users. Requires an Access JWT whose email is an existing owner or admin.
 
 ### `POST /users`
 
-Create a user.
+Create a developer or viewer. Requires an existing owner or admin. `role` of `owner` or `admin` is rejected. The first owner is inserted in D1. See [worker-auth.md](./worker-auth.md).
 
 Payload:
 
 ```json
 {
-  "email": "peter@heysalad.io",
-  "name": "Peter",
-  "role": "owner",
+  "email": "dev@heysalad.io",
+  "name": "Dev",
+  "role": "developer",
   "teamId": null
 }
 ```
 
 ## CORS
 
-The live Worker currently returns browser-safe CORS headers for:
-
-- `GET`
-- `POST`
-- `PATCH`
-- `OPTIONS`
-
-That is what allows the Pages dashboard to fetch live Worker data at runtime.
+Browser responses reflect `Origin` only when it is listed in the `ALLOWED_ORIGINS` Worker var. The committed value is `https://heysalad-sally-dashboard.pages.dev`. A wildcard is not accepted. Native clients, including the Sally Mac app, are not subject to CORS. They authenticate with `Authorization: Bearer <access-jwt>`. See [worker-auth.md](./worker-auth.md).
 
 ## CLI Reference
 
@@ -333,4 +328,4 @@ CloudflareTunnel  -> named tunnel when configured, quick tunnel fallback otherwi
 
 - Android stream startup is not implemented yet.
 - Quick tunnels are volatile and can break long-lived browser streaming sessions.
-- Full Cloudflare Access login is not built into the CLI yet; `auth login` is config-driven.
+- Full Cloudflare Access login is not built into the CLI yet. `sally auth login --token <jwt>` stores the JWT the Worker requires. See [worker-auth.md](./worker-auth.md).

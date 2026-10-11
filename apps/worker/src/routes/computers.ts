@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 
+import { canonicalUserId } from "../auth/actor.js";
 import { ComputerAgentError } from "../computer/types.js";
 import { jsonError, readJson } from "../http.js";
 import type { WorkerEnv } from "../types.js";
@@ -207,15 +208,10 @@ export const computersRoutes = new Hono<WorkerEnv>()
 
 function requireUserId(context: Context<WorkerEnv>): string | null {
   const claims = context.get("auth");
-  if (claims) {
-    return claims.email ?? claims.sub;
+  if (!claims) {
+    return null;
   }
-  // Auth is enforced by the Access middleware when REQUIRE_ACCESS_AUTH=true; the
-  // local-dev identity only exists so the flow is testable with auth disabled.
-  if (context.env.REQUIRE_ACCESS_AUTH !== "true" && context.env.SALLY_ENV === "development") {
-    return "local-dev";
-  }
-  return null;
+  return canonicalUserId(claims);
 }
 
 function readAgentSession(

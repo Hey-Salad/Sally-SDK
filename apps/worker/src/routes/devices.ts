@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { isManager, requireCaller } from "../auth/actor.js";
 import { jsonError, readJson, readQuery } from "../http.js";
 import type { WorkerEnv } from "../types.js";
 
@@ -26,8 +27,19 @@ const devicePatchSchema = deviceSchema.partial().omit({ id: true, platform: true
 
 export const devicesRoutes = new Hono<WorkerEnv>()
   .get("/", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     try {
       const filters = readQuery(context, deviceFilterSchema);
+      if (!isManager(caller)) {
+        if (!caller.teamId) {
+          return context.json({ items: [] });
+        }
+        filters.teamId = caller.teamId;
+      }
       const items = await context.get("queries").listDevices(filters);
       return context.json({ items });
     } catch (error) {
@@ -35,6 +47,14 @@ export const devicesRoutes = new Hono<WorkerEnv>()
     }
   })
   .post("/", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+    if (!isManager(caller)) {
+      return jsonError(context, 403, "Insufficient permissions");
+    }
+
     try {
       const payload = await readJson(context, deviceSchema);
       const device = await context.get("queries").upsertDevice(payload);
@@ -44,6 +64,14 @@ export const devicesRoutes = new Hono<WorkerEnv>()
     }
   })
   .patch("/:id", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+    if (!isManager(caller)) {
+      return jsonError(context, 403, "Insufficient permissions");
+    }
+
     try {
       const payload = await readJson(context, devicePatchSchema);
       const device = await context.get("queries").updateDevice(context.req.param("id"), payload);

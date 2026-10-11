@@ -47,7 +47,9 @@ export function registerAuthCommand(program: Command): void {
         logger.info(`Team slug: ${config.teamSlug}`);
       }
       if (!claims) {
-        logger.warn("No auth token saved. Use `sally auth login --token <jwt>` for Access-backed commands.");
+        logger.warn(
+          "No auth token saved. The worker requires a Cloudflare Access JWT. Run `sally auth login --token <jwt>`."
+        );
         return;
       }
       logger.success(`Authenticated as ${claims.email ?? claims.sub ?? "unknown-user"}`);

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { isManager, requireCaller, sameUser } from "../auth/actor.js";
 import { jsonError, readJson, readQuery } from "../http.js";
 import type { DeviceRecord, TestRunCheckRecord, TestRunStatus, WorkerEnv } from "../types.js";
 
@@ -15,13 +16,21 @@ const startRunSchema = z.object({
   deviceId: z.string().min(1),
   sessionId: z.string().min(1).nullable().optional(),
   suite: z.string().min(1).optional(),
-  userId: z.string().min(1)
+  userId: z.string().min(1).optional()
 });
 
 export const runsRoutes = new Hono<WorkerEnv>()
   .get("/", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     try {
       const filters = readQuery(context, listRunsSchema);
+      if (!isManager(caller)) {
+        filters.userId = caller.userId;
+      }
       const items = await context.get("queries").listTestRuns(filters);
       return context.json({ items });
     } catch (error) {
@@ -29,20 +38,35 @@ export const runsRoutes = new Hono<WorkerEnv>()
     }
   })
   .get("/:id/status", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     const run = await context.get("queries").getTestRun(context.req.param("id"));
-    if (!run) {
+    if (!run || (!isManager(caller) && !sameUser(run.userId, caller.userId))) {
       return jsonError(context, 404, "Run not found");
     }
     return context.json({ item: run });
   })
   .get("/:id", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     const run = await context.get("queries").getTestRun(context.req.param("id"));
-    if (!run) {
+    if (!run || (!isManager(caller) && !sameUser(run.userId, caller.userId))) {
       return jsonError(context, 404, "Run not found");
     }
     return context.json({ item: run });
   })
   .post("/start", async (context) => {
+    const caller = await requireCaller(context);
+    if (caller instanceof Response) {
+      return caller;
+    }
+
     try {
       const payload = await readJson(context, startRunSchema);
       const queries = context.get("queries");
@@ -57,7 +81,7 @@ export const runsRoutes = new Hono<WorkerEnv>()
         sessionId: payload.sessionId ?? null,
         suite: payload.suite ?? "smoke",
         summary: `Smoke test started for ${device.name}`,
-        userId: payload.userId
+        userId: caller.userId
       });
 
       const finishedAt = Math.max(Date.now(), run.startedAt + 1);

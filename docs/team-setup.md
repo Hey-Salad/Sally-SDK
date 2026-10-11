@@ -112,34 +112,19 @@ node packages/cli/dist/index.js auth whoami
 
 ## Cloudflare Access
 
-The Worker already includes JWT verification middleware using:
+The Worker requires a Cloudflare Access JWT. `REQUIRE_ACCESS_AUTH` is ignored. The deployed config sets `SALLY_ENV=production`, which cannot be turned off by a local dev flag.
 
-- `CF_ACCESS_TEAM_DOMAIN`
-- `CF_ACCESS_AUD`
-- `REQUIRE_ACCESS_AUTH`
+See [worker-auth.md](./worker-auth.md) for the secrets, the D1 owner bootstrap, allowed browser origins, and the Sally Mac client change.
 
-Current live state:
-
-- `REQUIRE_ACCESS_AUTH=false`
-
-That keeps local development and the current dashboard simple.
-
-When you are ready to lock the API down:
-
-1. create a Cloudflare Access application for the Worker
-2. set `CF_ACCESS_TEAM_DOMAIN`
-3. set `CF_ACCESS_AUD`
-4. set `REQUIRE_ACCESS_AUTH=true`
-5. update CLI users to save a valid Access token
+Local `wrangler dev` can skip the middleware JWT check by copying `apps/worker/.dev.vars.example` to `.dev.vars`. That file is not deployed. Devices, sessions, shopping, recipes, runs, teams, chat, recipe extraction, user administration, and computer control still require a JWT on the request.
 
 ## Recommended Team Rollout
 
 ```text
-1. create the team record
-2. create owner and admin users
+1. create the owner in D1 (POST /users cannot mint owner or admin)
+2. create the team record
 3. start one agent machine and validate a live device
 4. share the dashboard URL internally
-5. enable Access once the team is comfortable with the flow
 ```
 
 ## Known Limitations

@@ -35,9 +35,11 @@ export function registerPairCommand(program: Command): void {
       }
 
       if (!config.authToken) {
-        logger.warn(
-          "No auth token saved. Run `sally auth login --token <jwt>` first if the worker requires Cloudflare Access."
+        logger.error(
+          "A Cloudflare Access JWT is required to pair. Run `sally auth login --token <jwt>` and try again."
         );
+        process.exitCode = 1;
+        return;
       }
 
       const client = new SallyClient(apiBaseUrl, config.authToken);

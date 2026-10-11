@@ -270,12 +270,25 @@ export interface QueryService {
 }
 
 export interface WorkerBindings {
+  /**
+   * Local wrangler dev only. Skips Access when it is exactly "true" and
+   * SALLY_ENV is "development". Ignored when SALLY_ENV is "production".
+   * Computer control, chat, recipe extraction, and user admin still require
+   * a verified caller.
+   */
+  ALLOW_INSECURE_LOCAL_DEV?: string | undefined;
+  /** Comma-separated browser origins. "*" is ignored. */
+  ALLOWED_ORIGINS?: string | undefined;
   CF_ACCESS_AUD?: string | undefined;
   CF_ACCESS_TEAM_DOMAIN?: string | undefined;
   DB: D1Database;
   OPENAI_API_KEY?: string | undefined;
   OPENAI_BASE_URL?: string | undefined;
   OPENAI_MODEL?: string | undefined;
+  /**
+   * Ignored. Older configs used this as a fail-open switch. Auth is required
+   * unless ALLOW_INSECURE_LOCAL_DEV is set for local development.
+   */
   REQUIRE_ACCESS_AUTH?: string | undefined;
   SALLY_ENV?: string | undefined;
 }

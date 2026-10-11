@@ -85,13 +85,23 @@ describe("worker routes", () => {
 
   it("starts and stops sessions", async () => {
     const queries = createQueries({
+      listSessions: vi.fn().mockResolvedValue([
+        {
+          deviceId: "device-1",
+          endedAt: null,
+          id: "session-1",
+          ipAddress: "127.0.0.1",
+          startedAt: 1742395000000,
+          userId: "peter@heysalad.io"
+        }
+      ]),
       startSession: vi.fn().mockResolvedValue({
         deviceId: "device-1",
         endedAt: null,
         id: "session-1",
         ipAddress: "127.0.0.1",
         startedAt: 1742395000000,
-        userId: "user-1"
+        userId: "peter@heysalad.io"
       }),
       stopSession: vi.fn().mockResolvedValue({
         deviceId: "device-1",
@@ -126,7 +136,7 @@ describe("worker routes", () => {
     expect(queries.startSession).toHaveBeenCalledWith({
       deviceId: "device-1",
       ipAddress: "127.0.0.1",
-      userId: "user-1"
+      userId: "peter@heysalad.io"
     });
     expect(queries.stopSession).toHaveBeenCalledWith("session-1", 1742395600000);
   });
@@ -270,7 +280,7 @@ describe("worker routes", () => {
       sessionId: "session-1",
       suite: "smoke",
       summary: "Smoke test started for HeySalad iPhone",
-      userId: "user-1"
+      userId: "peter@heysalad.io"
     });
     expect(queries.completeTestRun).toHaveBeenCalledWith(
       "run-1",
@@ -320,7 +330,7 @@ describe("worker routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://heysalad-sally-dashboard.pages.dev");
     expect(queries.listTestRuns).toHaveBeenCalledWith({ limit: 5, userId: "user-1" });
     await expect(response.json()).resolves.toMatchObject({
       items: [{ id: "run-1", status: "passed" }]
@@ -414,28 +424,35 @@ describe("worker routes", () => {
   });
 
   it("extracts recipes into a direct resource", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response("<html><body>Tomato pasta recipe</body></html>", { status: 200 }))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({
-                    calories: 420,
-                    ingredients: ["Tomatoes", "Pasta"],
-                    steps: ["Boil pasta", "Mix sauce"],
-                    time: "25 minutes",
-                    title: "Tomato Pasta"
-                  })
-                }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const href = String(input);
+      if (href.startsWith("https://cloudflare-dns.com/dns-query")) {
+        const type = new URL(href).searchParams.get("type");
+        const answer = type === "A" ? [{ data: "93.184.216.34", type: 1 }] : [];
+        return new Response(JSON.stringify({ Answer: answer, Status: 0 }), { status: 200 });
+      }
+      if (href.startsWith("https://example.com/")) {
+        return new Response("<html><body>Tomato pasta recipe</body></html>", { status: 200 });
+      }
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  calories: 420,
+                  ingredients: ["Tomatoes", "Pasta"],
+                  steps: ["Boil pasta", "Mix sauce"],
+                  time: "25 minutes",
+                  title: "Tomato Pasta"
+                })
               }
-            ]
-          }),
-          { headers: { "Content-Type": "application/json" }, status: 200 }
-        )
+            }
+          ]
+        }),
+        { headers: { "Content-Type": "application/json" }, status: 200 }
       );
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     const app = createApp({ queries: createQueries(), verifier: verify });
@@ -502,7 +519,7 @@ describe("worker routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://heysalad-sally-dashboard.pages.dev");
     await expect(response.json()).resolves.toMatchObject({
       items: [
         {
@@ -540,7 +557,16 @@ function createQueries(overrides: Partial<QueryService> = {}): QueryService {
     listSessionsForUser: vi.fn(async () => []),
     listTestRuns: vi.fn(async () => []),
     listTeams: vi.fn(async () => []),
-    listUsers: vi.fn(async () => []),
+    listUsers: vi.fn(async () => [
+      {
+        createdAt: 1,
+        email: "peter@heysalad.io",
+        id: "user-owner",
+        name: "Peter",
+        role: "owner" as const,
+        teamId: "team-1"
+      }
+    ]),
     startTestRun: vi.fn(async () => {
       throw new Error("startTestRun not mocked");
     }),
@@ -569,8 +595,8 @@ function makeEnv(overrides: Partial<WorkerBindings> = {}): WorkerBindings {
   return {
     CF_ACCESS_AUD: "audience-1",
     CF_ACCESS_TEAM_DOMAIN: "heysalad.cloudflareaccess.com",
+    ALLOWED_ORIGINS: "https://heysalad-sally-dashboard.pages.dev",
     DB: {} as D1Database,
-    REQUIRE_ACCESS_AUTH: "false",
     SALLY_ENV: "test",
     ...overrides
   };

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { jsonError } from "../http.js";
 import type { AccessClaims, WorkerBindings, WorkerEnv } from "../types.js";
+import { accessAuthRequired } from "./access.js";
 
 const accessClaimsSchema = z.object({
   aud: z.array(z.string()).min(1),
@@ -41,7 +42,7 @@ export function createAccessMiddleware(
 
     const token = resolveToken(context.req.header("Authorization"), context.req.header("Cf-Access-Jwt-Assertion"));
     if (!token) {
-      if (!requiresAuth(context.env)) {
+      if (!accessAuthRequired(context.env)) {
         await next();
         return;
       }
@@ -78,10 +79,6 @@ export async function verifyAccessToken(
     : { aud, iss: payload.iss ?? "", sub: payload.sub ?? "" };
 
   return accessClaimsSchema.parse(claims);
-}
-
-function requiresAuth(bindings: WorkerBindings): boolean {
-  return bindings.REQUIRE_ACCESS_AUTH === "true";
 }
 
 function resolveToken(
